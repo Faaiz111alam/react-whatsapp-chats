@@ -1,0 +1,94 @@
+import { Box } from '@material-ui/core';
+import { useState } from 'react';
+import { makeStyles } from '@material-ui/styles';
+import Footer from './Footer';
+import { useContext } from 'react';
+import { AccountContext } from '../../context/Accountpro';
+import { gatCon, GetCon, sendmsgapi } from '../../Api';
+import { useEffect } from 'react';
+import { Messagecomp } from './Messagecomp';
+
+const usestyle = makeStyles({
+  contmsg: {
+    height: '400px',
+    width: '100%',
+    overflow: 'scroll',
+  },
+});
+
+const Msg = ({ conversation, person }) => {
+  const [value, sendmsg] = useState();
+  const [msg, setmsg] = useState();
+  const {
+    account,
+    socket,
+    incomsg,
+    flagesetincomsg,
+    flageincomsg,
+    setincomsg,
+  } = useContext(AccountContext);
+  const classes = usestyle();
+  const reciverid = conversation.members?.find(
+    (x) => x.googleId !== account.googleId
+  );
+
+  useEffect(() => {
+    socket.current.on('getmssgs', (data) => {
+      setincomsg({
+        sender: data.senderid,
+        text: data.text,
+        createdAt: Date.now(),
+      });
+    });
+  }, [value]);
+
+  useEffect(() => {
+    incomsg &&
+      conversation.members?.includes(incomsg.senderid) &&
+      setmsg((pre) => [...pre, incomsg]);
+  }, [incomsg, conversation]);
+
+  const sendtext = async (e) => {
+    let text = e.which;
+    if (text === 13 && value) {
+      sendmsg('');
+      const msg = await sendmsgapi({
+        sender: account.googleId,
+        conversationid: conversation._id,
+        text: value,
+      });
+
+      socket.current.emit('sendmessage', {
+        reciverid,
+        senderid: account.googleId,
+        text: value,
+      });
+      // flagesetincomsg((pre) => !pre);
+    }
+  };
+
+  useEffect(() => {
+    const getmsg = async () => {
+      const data = await gatCon(conversation._id);
+      setmsg(data);
+    };
+    getmsg();
+  }, [conversation, value, msg]);
+
+  return (
+    <Box className={classes.contmsg}>
+      {msg &&
+        msg.map((msgs) => (
+          <Box>
+            <Messagecomp msgs={msgs} />
+          </Box>
+        ))}
+
+      <Box>
+        <Footer sendtext={sendtext} sendmsg={sendmsg} value={value} />
+      </Box>
+    </Box>
+  );
+};
+
+export default Msg;
